@@ -39,10 +39,11 @@ def create_comparison_dataset(dataset):
 
 
 class RankingDataset(Dataset):
-    def __init__(self, rankings, tokenizer, max_length):
+    def __init__(self, rankings, tokenizer, max_length, filter_uniform_rankings=True):
         self.items = []
         for ranking in tqdm(rankings):
             current_items = []
+            input_ids_set = set()
             for output in ranking:
                 encodings_dict = tokenizer(
                     "<|startoftext|>" + output + "<|endoftext|>",
@@ -51,9 +52,13 @@ class RankingDataset(Dataset):
                     padding="max_length",
                     return_tensors="pt",
                 )
+                input_ids_tuple = tuple(encodings_dict["input_ids"].squeeze().tolist())
+                input_ids_set.add(input_ids_tuple)
                 current_items.append(encodings_dict["input_ids"])
                 current_items.append(encodings_dict["attention_mask"])
-            self.items.append(current_items)
+
+            if not filter_uniform_rankings or len(input_ids_set) > 1:
+                self.items.append(current_items)
 
     def __len__(self):
         return len(self.items)
