@@ -77,11 +77,18 @@ class Model(nn.Module):
                 if not mean.isnan():
                     loss = loss + mean
                 else:
+                    print("pairwise_rewards when isnan: ", pairwise_rewards)
+                    print("__ Inputs to pairwise_reward __")
+                    print("all_pairs(len(unpadded)): ", all_pairs(len(unpadded)))
+                    print([(ranked[j][i], ranked[k][i], ranked_rewards[j][i], ranked_rewards[k][i])
+                           for (j, k) in all_pairs(len(unpadded))])
                     effective_batch_size -= 1
             else:
                 effective_batch_size -= 1
 
         # print("After pairwise loss")
+        if not (effective_batch_size > 0):
+            print("effective_batch_size: ", effective_batch_size)
 
         loss = loss / effective_batch_size if effective_batch_size > 0 else loss
 

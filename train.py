@@ -1,9 +1,10 @@
 import json
 
-from transformers import TrainingArguments, AutoTokenizer, Trainer, T5EncoderModel
+from transformers import TrainingArguments, AutoTokenizer, Trainer, T5EncoderModel, LlamaTokenizer, LlamaModel
 from src import Model, RankingDataset, create_comparison_dataset, DataCollator
 from datasets import load_dataset
 from tqdm import tqdm
+import torch
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
@@ -102,9 +103,42 @@ def get_llama_training_settings(params, dataset):
     return training_args, optimizer, scheduler
 
 
-tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
+def freeze(layers, unfrozen_percent=0.3):
+    num_layers = len(layers)
+    num_unfrozen = int(unfrozen_percent * num_layers)
+    for layer in layers[:-num_unfrozen]:
+        layer.requires_grad_(False)
+    return layers
 
-base_model = T5EncoderModel.from_pretrained("google/flan-t5-xl")
+
+def get_T5_model():
+    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
+    base_model = T5EncoderModel.from_pretrained("google/flan-t5-xl")
+    freeze(base_model.encoder.block)
+    return tokenizer, base_model
+
+
+def get_llama_model():
+    tokenizer = LlamaTokenizer.from_pretrained(
+        "decapoda-research/llama-7b-hf",
+        device_map="auto"
+    )
+    base_model = LlamaModel.from_pretrained(
+        "decapoda-research/llama-7b-hf",
+        torch_dtype=torch.float32
+    )
+
+    new_pad_token = "<pad>"
+    tokenizer.add_tokens([new_pad_token])
+    tokenizer.pad_token = new_pad_token
+    base_model.resize_token_embeddings(len(tokenizer))
+
+    freeze(base_model.layers)
+
+    return tokenizer, base_model
+
+
+tokenizer, base_model = get_llama_model()
 
 model = Model(
     base_model,
@@ -112,18 +146,12 @@ model = Model(
     max_ranks_per_batch=MAX_RANKS_PER_BATCH
 )
 
-layers = model.transformer.encoder.block
-num_layers = len(layers)
-num_unfrozen = int(0.3 * num_layers)
-for layer in layers[:-num_unfrozen]:
-    layer.requires_grad_(False)
-
 training_examples = get_training_examples()
 
 train_pairs = create_comparison_dataset(get_training_examples())
-train_dataset = RankingDataset(train_pairs, tokenizer, max_length=MAX_LENGTH)
+train_dataset = RankingDataset(train_pairs[400:], tokenizer, max_length=MAX_LENGTH)
 eval_pairs = create_comparison_dataset(get_validation_examples())
-eval_dataset = RankingDataset(eval_pairs[:10], tokenizer, max_length=MAX_LENGTH)
+eval_dataset = RankingDataset(eval_pairs[:100], tokenizer, max_length=MAX_LENGTH)
 data_collator = DataCollator(max_ranks_per_batch=MAX_RANKS_PER_BATCH, max_sequence_length=MAX_LENGTH)
 
 training_args, optimizer, scheduler = get_llama_training_settings(model.parameters(), train_dataset)
