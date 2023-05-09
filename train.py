@@ -4,6 +4,8 @@ from transformers import TrainingArguments, AutoTokenizer, Trainer, T5EncoderMod
 from src import Model, RankingDataset, create_comparison_dataset, DataCollator
 from datasets import load_dataset
 from tqdm import tqdm
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 MAX_RANKS_PER_BATCH = 2
 MAX_LENGTH = 512
@@ -59,24 +61,48 @@ def compute_metrics(eval_preds):
     return result
 
 
-tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
+def get_T5_training_settings(_params, _dataset):
+    training_args = TrainingArguments(
+        output_dir="./output",
+        # num_train_epochs=10,
+        num_train_epochs=1,
+        logging_steps=100,
+        gradient_accumulation_steps=4,
+        save_strategy="steps",
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        save_steps=500,
+        warmup_steps=100,
+        logging_dir="./logs",
+        learning_rate=1e-5,
+        save_total_limit=1,
+        eval_steps=100,
+        evaluation_strategy="steps"
+    )
+    return training_args, None, None
 
-training_args = TrainingArguments(
-    output_dir="./output",
-    num_train_epochs=10,
-    logging_steps=100,
-    gradient_accumulation_steps=4,
-    save_strategy="steps",
-    per_device_train_batch_size=1,
-    per_device_eval_batch_size=1,
-    save_steps=500,
-    warmup_steps=100,
-    logging_dir="./logs",
-    learning_rate=1e-5,
-    save_total_limit=1,
-    eval_steps=100,
-    evaluation_strategy="steps"
-)
+
+def get_llama_training_settings(params, dataset):
+    training_args = TrainingArguments(
+        output_dir="./output",
+        num_train_epochs=1,
+        logging_steps=100,
+        gradient_accumulation_steps=4,
+        save_strategy="steps",
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        save_steps=3000,
+        warmup_steps=100,
+        logging_dir="./logs",
+        eval_steps=100,
+        evaluation_strategy="steps"
+    )
+    optimizer = AdamW(params, lr=3e-4, betas=(0.9, 0.95), weight_decay=0.1)
+    scheduler = CosineAnnealingLR(optimizer, len(dataset), eta_min=3e-5)
+    return training_args, optimizer, scheduler
+
+
+tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
 
 base_model = T5EncoderModel.from_pretrained("google/flan-t5-xl")
 
@@ -95,11 +121,12 @@ for layer in layers[:-num_unfrozen]:
 training_examples = get_training_examples()
 
 train_pairs = create_comparison_dataset(get_training_examples())
-train_dataset = RankingDataset(train_pairs[0:2000], tokenizer, max_length=MAX_LENGTH)
+train_dataset = RankingDataset(train_pairs, tokenizer, max_length=MAX_LENGTH)
 eval_pairs = create_comparison_dataset(get_validation_examples())
 eval_dataset = RankingDataset(eval_pairs[:10], tokenizer, max_length=MAX_LENGTH)
 data_collator = DataCollator(max_ranks_per_batch=MAX_RANKS_PER_BATCH, max_sequence_length=MAX_LENGTH)
 
+training_args, optimizer, scheduler = get_llama_training_settings(model.parameters(), train_dataset)
 
 Trainer(
     model=model,
