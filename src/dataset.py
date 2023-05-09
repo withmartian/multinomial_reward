@@ -88,4 +88,6 @@ class DataCollator:
             ])
         batch["input_ids"] = torch.cat(input_ids)
         batch["attention_mask"] = torch.cat(attention_mask)
+        # Metrics are not computed in the huggingface trainer unless labels are present
+        batch["labels"] = torch.tensor([i for i in range(self.max_ranks_per_batch) for _ in data])
         return batch

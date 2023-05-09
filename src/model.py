@@ -21,6 +21,7 @@ class Model(nn.Module):
             input_ids=None,
             attention_mask=None,
             inputs_embeds=None,
+            labels=None,  # Trainer passes in labels, but it's not a kwarg for hf transformers, so we consume it here
             **kwargs
     ):
         # print("Starting forward")
