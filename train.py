@@ -1,5 +1,3 @@
-import json
-
 from transformers import TrainingArguments, AutoTokenizer, Trainer, T5EncoderModel, LlamaTokenizer, LlamaModel
 from src import Model, RankingDataset, create_comparison_dataset, DataCollator
 from datasets import load_dataset
@@ -138,29 +136,30 @@ def get_llama_model():
     return tokenizer, base_model
 
 
-tokenizer, base_model = get_llama_model()
+if __name__ == "__main__":
+    tokenizer, base_model = get_llama_model()
 
-model = Model(
-    base_model,
-    tokenizer,
-    max_ranks_per_batch=MAX_RANKS_PER_BATCH
-)
+    model = Model(
+        base_model,
+        tokenizer,
+        max_ranks_per_batch=MAX_RANKS_PER_BATCH
+    )
 
-training_examples = get_training_examples()
+    training_examples = get_training_examples()
 
-train_pairs = create_comparison_dataset(get_training_examples())
-train_dataset = RankingDataset(train_pairs[400:], tokenizer, max_length=MAX_LENGTH)
-eval_pairs = create_comparison_dataset(get_validation_examples())
-eval_dataset = RankingDataset(eval_pairs[:100], tokenizer, max_length=MAX_LENGTH)
-data_collator = DataCollator(max_ranks_per_batch=MAX_RANKS_PER_BATCH, max_sequence_length=MAX_LENGTH)
+    train_pairs = create_comparison_dataset(get_training_examples())
+    train_dataset = RankingDataset(train_pairs[400:], tokenizer, max_length=MAX_LENGTH)
+    eval_pairs = create_comparison_dataset(get_validation_examples())
+    eval_dataset = RankingDataset(eval_pairs[:100], tokenizer, max_length=MAX_LENGTH)
+    data_collator = DataCollator(max_ranks_per_batch=MAX_RANKS_PER_BATCH, max_sequence_length=MAX_LENGTH)
 
-training_args, optimizer, scheduler = get_llama_training_settings(model.parameters(), train_dataset)
+    training_args, optimizer, scheduler = get_llama_training_settings(model.parameters(), train_dataset)
 
-Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    data_collator=data_collator,
-    eval_dataset=eval_dataset,
-    compute_metrics=compute_metrics
-).train()
+    Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        data_collator=data_collator,
+        eval_dataset=eval_dataset,
+        compute_metrics=compute_metrics
+    ).train()
