@@ -55,7 +55,7 @@ class Model(nn.Module):
 
         for i in range(bs):
             for j in range(self.max_ranks_per_batch):
-                end_scores[j].append(ranked_rewards[j][i][self.get_start_of_padding(ranked[j][i])])
+                end_scores[j].append(ranked_rewards[j][i][self.get_start_of_padding(ranked[j][i]) - 1])
 
         # print("After end scores")
 
@@ -116,7 +116,7 @@ class Model(nn.Module):
 
     def get_start_of_padding(self, input1):
         inds = (input1 == self.PAD_ID).nonzero()
-        return inds[0].item() if len(inds) > 0 else len(input1) - 1
+        return inds[0].item() if len(inds) > 0 else len(input1)
 
     def loss(self, outputs, batch):
         return outputs["loss"]
