@@ -24,10 +24,7 @@ class Model(nn.Module):
             labels=None,  # Trainer passes in labels, but it's not a kwarg for hf transformers, so we consume it here
             **kwargs
     ):
-        # print("Starting forward")
         attention_mask, inputs_embeds = self.convert_tensors(attention_mask, inputs_embeds)
-
-        # print("after converting tensors")
 
         transformer_outputs = self.transformer(
             input_ids=input_ids,
@@ -36,13 +33,9 @@ class Model(nn.Module):
             **kwargs
         )
 
-        # print("After transformer outputs")
-
         hidden_states = transformer_outputs[0]
 
         rewards = self.v_head(hidden_states).squeeze(-1)
-
-        # print("After rewards")
 
         bs = input_ids.shape[0] // self.max_ranks_per_batch
 
@@ -51,18 +44,12 @@ class Model(nn.Module):
 
         end_scores = [list() for _ in range(self.max_ranks_per_batch)]
 
-        # print("Before end_scores")
-
         for i in range(bs):
             for j in range(self.max_ranks_per_batch):
                 end_scores[j].append(ranked_rewards[j][i][self.get_start_of_padding(ranked[j][i]) - 1])
 
-        # print("After end scores")
-
         loss = torch.tensor(0.0, device=self.transformer.device, requires_grad=True)
         effective_batch_size = bs
-
-        # print("Before pairwise loss")
 
         for i in range(bs):
             unpadded = [rank[i] for rank in ranked if
@@ -86,15 +73,10 @@ class Model(nn.Module):
             else:
                 effective_batch_size -= 1
 
-        # print("After pairwise loss")
         if not (effective_batch_size > 0):
             print("effective_batch_size: ", effective_batch_size)
 
         loss = loss / effective_batch_size if effective_batch_size > 0 else loss
-
-        # print("Before return")
-
-        print(loss)
 
         return {
             "end_scores": end_scores,
