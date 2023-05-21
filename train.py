@@ -153,6 +153,8 @@ if __name__ == "__main__":
     eval_dataset = RankingDataset(eval_pairs[:100], tokenizer, max_length=MAX_LENGTH)
     data_collator = DataCollator(max_ranks_per_batch=MAX_RANKS_PER_BATCH, max_sequence_length=MAX_LENGTH)
 
+    print("data_collator(eval_dataset)[0]: ", data_collator(eval_dataset)[0])
+
     training_args, optimizer, scheduler = get_llama_training_settings(model.parameters(), train_dataset)
 
     Trainer(
