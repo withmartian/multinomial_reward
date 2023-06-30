@@ -16,7 +16,7 @@ which replicates the reward model from _"Learning to summarize from human feedba
 
 ```bash
 git clone git@github.com:withmartian/multinomial_reward.git
-pip install -r requirements.txt
+pip install -r src/requirements.txt
 python train.py
 ```
 
