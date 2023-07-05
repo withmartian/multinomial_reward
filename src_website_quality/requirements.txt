@@ -1,0 +1,6 @@
+torch
+sentencepiece
+tqdm
+transformers==4.30.2
+datasets
+pillow
