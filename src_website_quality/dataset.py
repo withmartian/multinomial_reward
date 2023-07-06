@@ -1,10 +1,21 @@
-from PIL import Image
-import torch
-from torch.utils.data import Dataset
 from tqdm import tqdm
+import io, torch
+from torch.utils.data import Dataset
+from PIL import Image
+from google.cloud import storage
 
-def resize_and_slice(img_path, desired_size=224, fill_color=(255, 255, 255)):
-    img = Image.open(img_path)
+GCS_BUCKET_NAME = 'model-storage-bucket'
+storage_client = storage.Client.from_service_account_json('gcs_credentials.json')
+
+def resize_and_slice(blob, desired_size=224, fill_color=(255, 255, 255)):
+    # Convert blob data to a file-like object
+    blob_bytes = blob.download_as_bytes()
+    try:
+        img = Image.open(io.BytesIO(blob_bytes))
+    except:
+       print(blob.name, blob.content_type)
+       with open(f'{blob.name}.png', 'wb') as f:
+          f.write(blob.download_as_bytes())
     ratio = desired_size / img.width
     new_height = int(ratio * img.height)
     img = img.resize((desired_size, new_height), Image.ANTIALIAS)
@@ -28,18 +39,18 @@ def resize_and_slice(img_path, desired_size=224, fill_color=(255, 255, 255)):
 
 
 class ImageRankingDataset(Dataset):
-  # rankings contains lists of image file paths of the same website
-  # [[wiki2001.png, wiki2002.png... ], [baidu2007.png, baidu2008.png...], ...]
-  # 1997 - 2023 is 27 years
-  # self.items eventually is a list of tokenized rankings for each website with padding
-  def __init__(self, rankings, processor, max_ranks_per_batch=27, img_width=224, img_height=224):
+  def __init__(self, dataset, processor, max_ranks_per_batch=27, img_width=224, img_height=224):
     self.items = []
-    for ranking in tqdm(rankings): # for each website
-      images = [resize_and_slice(path) for path in ranking] # a list of slices
+    self.bucket = storage_client.get_bucket(GCS_BUCKET_NAME)
+    for data in tqdm(dataset): # for each website
+      print(data)
+      # Get list of image file paths for the current website
+      image_blobs = [blob for blob in self.bucket.list_blobs(prefix=data) if blob.name.endswith('.png')]
+      images = [resize_and_slice(blob) for blob in image_blobs]
       slice_count = [len(sublist) for sublist in images]
       flattened_imgs = [img for sublist in images for img in sublist]
       inputs = processor(images=flattened_imgs, return_tensors="pt", padding=True)
-      item = {"pixel_values": inputs['pixel_values'], "counts": [len(ranking), slice_count]}
+      item = {"pixel_values": inputs['pixel_values'], "counts": [len(images), slice_count]}
       self.items.append(item)
 
   def __len__(self):

@@ -1,8 +1,12 @@
 from transformers import CLIPImageProcessor, CLIPVisionModel
 from transformers import Trainer, TrainingArguments, DataCollator
 from src_website_quality import Model, DataCollator, ImageRankingDataset
+import torch, os
+from google.cloud import storage
 
-import torch
+storage_client = storage.Client.from_service_account_json('src_website_quality/gcs_credentials.json')
+BUCKET_NAME = 'model-storage-bucket'
+TRAIN_TEST_SPLIT = 0.8
 
 def get_clip_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,13 +37,19 @@ def compute_metrics(eval_preds):
     result["accuracy"] = acc
     return result
 
+def get_website_dataset(folder_name):
+    blobs = storage_client.list_blobs(BUCKET_NAME, prefix=folder_name)
+    websites = list(set([os.path.dirname(blob.name) for blob in blobs if blob.name.endswith('.png')]))
+    return websites
+
 
 if __name__ == "__main__":
     base_model, processor = get_clip_model()
     model = Model(base_model, processor, max_ranks_per_batch=27)
-    dataset = [] # FIXME: get dataset, probably using GCS
-    train_dataset = ImageRankingDataset(dataset[:40], processor)
-    eval_dataset = ImageRankingDataset(dataset[40:], processor)
+    dataset = get_website_dataset("internet_archive_screenshots")
+    split = int(len(dataset) * TRAIN_TEST_SPLIT)
+    train_dataset = ImageRankingDataset(dataset[:split], processor)
+    eval_dataset = ImageRankingDataset(dataset[split:], processor)
     data_collator = DataCollator()
 
     # FIXME: change training args
