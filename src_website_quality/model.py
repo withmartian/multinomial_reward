@@ -63,9 +63,6 @@ class Model(nn.Module):
         else:
           print("pairwise_rewards when isnan: ", pairwise_rewards)
           print("__ Inputs to pairwise_reward __")
-          # print("all_pairs(len(unpadded)): ", all_pairs(len(unpadded)))
-          # print([(ranked[j][i], ranked[k][i], ranked_rewards[j][i], ranked_rewards[k][i])
-          #         for (j, k) in all_pairs(len(unpadded))])
           effective_batch_size -= 1
       else:
         effective_batch_size -= 1

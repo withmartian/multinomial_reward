@@ -5,7 +5,7 @@ from PIL import Image
 from google.cloud import storage
 
 GCS_BUCKET_NAME = 'model-storage-bucket'
-storage_client = storage.Client.from_service_account_json('gcs_credentials.json')
+storage_client = storage.Client.from_service_account_json('src_website_quality/gcs_credentials.json')
 
 def resize_and_slice(blob, desired_size=224, fill_color=(255, 255, 255)):
     # Convert blob data to a file-like object
@@ -13,7 +13,6 @@ def resize_and_slice(blob, desired_size=224, fill_color=(255, 255, 255)):
     try:
         img = Image.open(io.BytesIO(blob_bytes))
     except:
-       print(blob.name, blob.content_type)
        with open(f'{blob.name}.png', 'wb') as f:
           f.write(blob.download_as_bytes())
     ratio = desired_size / img.width
@@ -43,15 +42,20 @@ class ImageRankingDataset(Dataset):
     self.items = []
     self.bucket = storage_client.get_bucket(GCS_BUCKET_NAME)
     for data in tqdm(dataset): # for each website
-      print(data)
       # Get list of image file paths for the current website
       image_blobs = [blob for blob in self.bucket.list_blobs(prefix=data) if blob.name.endswith('.png')]
+      sorted_blobs = sorted(image_blobs, key=self.get_year_from_blob_name, reverse=True)
       images = [resize_and_slice(blob) for blob in image_blobs]
       slice_count = [len(sublist) for sublist in images]
       flattened_imgs = [img for sublist in images for img in sublist]
       inputs = processor(images=flattened_imgs, return_tensors="pt", padding=True)
       item = {"pixel_values": inputs['pixel_values'], "counts": [len(images), slice_count]}
       self.items.append(item)
+
+  def get_year_from_blob_name(self, blob):
+    # assume blob name is in the format: "internet_archive_screenshots/google.com/2018.png"
+    return int(blob.name.split('/')[-1].split('.')[0])
+     
 
   def __len__(self):
       return len(self.items)

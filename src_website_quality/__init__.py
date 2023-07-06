@@ -2,5 +2,5 @@ from . import model
 from . import dataset
 
 Model = model.Model
-RankingDataset = dataset.ImageRankingDataset
+ImageRankingDataset = dataset.ImageRankingDataset
 DataCollator = dataset.DataCollator
