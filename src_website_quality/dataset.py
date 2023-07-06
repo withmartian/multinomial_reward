@@ -13,8 +13,7 @@ def resize_and_slice(blob, desired_size=224, fill_color=(255, 255, 255)):
     try:
         img = Image.open(io.BytesIO(blob_bytes))
     except:
-       with open(f'{blob.name}.png', 'wb') as f:
-          f.write(blob.download_as_bytes())
+        print("Error opening image, skipping...")
     ratio = desired_size / img.width
     new_height = int(ratio * img.height)
     img = img.resize((desired_size, new_height), Image.ANTIALIAS)
