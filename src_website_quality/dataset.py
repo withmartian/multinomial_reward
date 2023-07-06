@@ -46,8 +46,8 @@ class ImageRankingDataset(Dataset):
       # Get list of image file paths for the current website
       image_blobs = [blob for blob in self.bucket.list_blobs(prefix=data) if blob.name.endswith('.png')]
       sorted_blobs = sorted(image_blobs, key=self.get_year_from_blob_name, reverse=True)
-      images = [resize_and_slice(blob) for blob in image_blobs]
-      images = [sublist for sublist in images if sublist]
+      images = [resize_and_slice(blob) for blob in sorted_blobs]
+      images = [sublist for sublist in images if sublist] # remove empty lists
       slice_count = [len(sublist) for sublist in images]
       flattened_imgs = [img for sublist in images for img in sublist]
       inputs = processor(images=flattened_imgs, return_tensors="pt", padding=True)
