@@ -10,15 +10,17 @@ storage_client = storage.Client.from_service_account_json('src_website_quality/g
 def resize_and_slice(blob, desired_size=224, fill_color=(255, 255, 255)):
     # Convert blob data to a file-like object
     blob_bytes = blob.download_as_bytes()
+    image_slices = []
+
     try:
         img = Image.open(io.BytesIO(blob_bytes))
     except:
         print("Error opening image, skipping...")
+        return image_slices
+    
     ratio = desired_size / img.width
     new_height = int(ratio * img.height)
     img = img.resize((desired_size, new_height), Image.ANTIALIAS)
-
-    image_slices = []
 
     # If the new height is less than the desired size, pad it
     if new_height < desired_size:
@@ -45,6 +47,7 @@ class ImageRankingDataset(Dataset):
       image_blobs = [blob for blob in self.bucket.list_blobs(prefix=data) if blob.name.endswith('.png')]
       sorted_blobs = sorted(image_blobs, key=self.get_year_from_blob_name, reverse=True)
       images = [resize_and_slice(blob) for blob in image_blobs]
+      images = [sublist for sublist in images if sublist]
       slice_count = [len(sublist) for sublist in images]
       flattened_imgs = [img for sublist in images for img in sublist]
       inputs = processor(images=flattened_imgs, return_tensors="pt", padding=True)
