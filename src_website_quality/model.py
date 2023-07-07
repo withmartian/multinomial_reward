@@ -27,12 +27,12 @@ class Model(nn.Module):
 
     # getting end_scores
     ptr = 0
-    ranked_rewards = []
+    ranked_rewards = [] # num_websties x tesor.Size(year_count, 50)  year_count is <= max_ranks_per_batch
     for _ , slice_count_lst in counts:
       website_rewards = [] # contains each year of the website's rewards
       for i in range(len(slice_count_lst)):
-        # averaging hidden states for slices
-        website_rewards.append(rewards[ptr : ptr + slice_count_lst[i]].mean(dim=0, keepdim=True)) #torch.Size(1,50)
+        # pooling: averaging hidden states for slices
+        website_rewards.append(rewards[ptr : ptr + slice_count_lst[i]].mean(dim=0, keepdim=True)) # append torch.Size(1,50)
         ptr += slice_count_lst[i]
       ranked_rewards.append(torch.cat(website_rewards))
 
@@ -43,16 +43,16 @@ class Model(nn.Module):
     #     end_scores[j][i] = torch.mean(ranked_rewards[i][j])
     
     end_scores = [list() for _ in range(self.max_ranks_per_batch)]
-    for i in range(len(ranked_rewards)):
-      for j in range(len(ranked_rewards[i])):
-        end_scores[j].append(torch.mean(ranked_rewards[i][j]))
+    for i in range(len(ranked_rewards)): # index into one website
+      for j in range(len(ranked_rewards[i])): # index into one year of the website
+        end_scores[j].append(torch.mean(ranked_rewards[i][j])) # averaging over 50 tokens
 
     loss = torch.tensor(0.0, device=self.transformer.device, requires_grad=True)
     effective_batch_size = bs
 
-    # getting ranked_rewards
+    # getting loss
     for i in range(bs):
-      if len(ranked_rewards[i]) > 1:
+      if len(ranked_rewards[i]) > 1: # have more than 1 year
         pairwise_rewards = torch.stack(
             [self.get_pairwise_reward(ranked_rewards[i][j], ranked_rewards[i][k])
             for (j,k) in all_pairs(len(ranked_rewards[i]))])
